@@ -8,7 +8,7 @@
 
 ## Overview
 
-This directory contains the complete, open-source code and interactive practice resources accompanying the **Assumptions of Ordinary Least Squares (OLS) Regression** lecture suite. It is designed to let students, analysts, and interview candidates break the mathematical assumptions of OLS in real time, observe parameter breakdown (`Singular matrix` exceptions, biased slopes, see-sawing coefficients), and implement industry-standard fixes (`White HC3` robust standard errors, `MASS::rlm` M-estimation, polynomial transformations, and Cook's distance pruning).
+This directory contains the complete, open-source code and interactive practice resources accompanying the **Assumptions of Ordinary Least Squares (OLS) Regression** lecture suite. It is designed to let students, analysts, and interview candidates break the mathematical assumptions of OLS in real time, observe parameter breakdown (`Singular matrix` exceptions, biased slopes, see-sawing coefficients), and implement industry-standard fixes (`White HC3` robust standard errors, `MASS::rlm` M-estimation, polynomial transformations, Cook's distance pruning, and empirical verification of Gauss-Markov unbiasedness).
 
 ```
 examples_and_simulations/
@@ -16,11 +16,14 @@ examples_and_simulations/
 ├── jupyter_notebooks/                       # Python 3 / Jupyter Notebooks & HTML/MD exports
 │   ├── 1_simulating_heteroscedasticity.ipynb
 │   ├── 2_collinearity_crash.ipynb
-│   └── 3_ols_assumptions_all_simulations.ipynb # Complete interactive simulation suite for all 6 assumptions
+│   ├── 3_ols_assumptions_all_simulations.ipynb # Complete interactive simulation suite for all 6 assumptions
+│   └── 4_ols_unbiasedness_sampling_distribution.ipynb # Monte Carlo proof of OLS unbiasedness (n=30 from N=1000)
 ├── r_markdowns/                             # R Markdown scripts (.Rmd) & rendered docs
 │   ├── 1_cooks_distance_leverage.Rmd
 │   ├── 1_cooks_distance_leverage.md
-│   └── 2_ols_assumptions_simulations.Rmd      # Full R tidyverse/broom simulation suite
+│   ├── 2_ols_assumptions_simulations.Rmd      # Full R tidyverse/broom simulation suite
+│   ├── 3_ols_unbiasedness_simulation.Rmd      # Sampling distribution proof of unbiasedness
+│   └── 3_ols_unbiasedness_simulation.md
 ├── shiny_apps/                              # Interactive R Shiny Web Applications
 │   └── ols_assumptions_explorer/
 │       ├── app.R                            # Multi-tab interactive explorer (Sliders for bias, curvature, outliers)
@@ -36,6 +39,7 @@ examples_and_simulations/
 
 | # | Topic & Core Assumption | Interactive Resource | Primary Diagnostic & Takeaway |
 |---|-------------------------|----------------------|-------------------------------|
+| **0** | **Gauss-Markov Unbiasedness ($E[\hat{\beta}] = \beta$)**<br>*(Sampling Distribution)* | `4_ols_unbiasedness_sampling_distribution.ipynb`<br>`3_ols_unbiasedness_simulation.Rmd` | Simulate $N=1,000$ population ($Y = 1 + 2X + \epsilon$). Run 1,000 Monte Carlo loops drawing $n=30$ subsamples. Plot histograms verifying that sample parameter estimates center exactly on true parameters ($\beta_0=1, \beta_1=2$). |
 | **1** | **Linearity in Parameters**<br>*(Assumption 1)* | `3_ols_assumptions_all_simulations.ipynb`<br>`2_ols_assumptions_simulations.Rmd`<br>`Shiny Tab 1: Linearity & Transformations` | Simulate cubic curvature ($Y = -5 + X^3 + \epsilon$). Observe how linear OLS underfits and biases slopes. Apply $X^3$ transformation to restore exact linearity in parameters. |
 | **2** | **Representative Samples**<br>*(Assumption 2)* | `3_ols_assumptions_all_simulations.ipynb`<br>`2_ols_assumptions_simulations.Rmd`<br>`Shiny Tab 2: Range Subsetting Bias` | Simulate global positive trend ($Y \sim +X$) where local range subsets ($0<X<1.5$, etc.) exhibit negative slopes. Demonstrates why truncation distorts $\hat{\beta}_1$. |
 | **3** | **Zero Conditional Mean ($E[\epsilon\|X]=0$)**<br>*(Assumption 3)* | `3_ols_assumptions_all_simulations.ipynb`<br>`Shiny Tab 3: Exogeneity & Bias` | Inject intercept shifts ($\pm 1$) and slope tilts to show how omitted variable bias or endogeneity causes $E[\epsilon\|X] \neq 0$, systematically biasing $\hat{\beta}$ away from true values. |
@@ -69,7 +73,7 @@ Ensure you have R 4.2+ installed (and optionally Posit / RStudio). Install requi
 
 ```r
 # Launch R and run:
-install.packages(c("ggplot2", "dplyr", "broom", "rmarkdown", "knitr", "shiny", "bslib", "MASS"))
+install.packages(c("ggplot2", "dplyr", "broom", "rmarkdown", "knitr", "shiny", "bslib", "MASS", "purrr"))
 ```
 
 To run the interactive R Shiny Web Application locally:

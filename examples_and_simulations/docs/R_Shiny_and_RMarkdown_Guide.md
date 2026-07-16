@@ -8,7 +8,7 @@
 
 ## Overview
 
-This guide documents the R Markdown (`.Rmd`) simulation scripts and interactive **R Shiny Web Applications** available in our practice repository. Utilizing modern `tidyverse` (`dplyr`, `ggplot2`), `broom`, `bslib`, and `MASS`, these tools allow students to explore OLS diagnostics and breakdown modes in real time.
+This guide documents the R Markdown (`.Rmd`) simulation scripts and interactive **R Shiny Web Applications** available in our practice repository. Utilizing modern `tidyverse` (`dplyr`, `ggplot2`, `purrr`), `broom`, `bslib`, and `MASS`, these tools allow students to explore OLS diagnostics and breakdown modes in real time.
 
 ---
 
@@ -36,6 +36,12 @@ The multi-tab interactive Shiny app (`app.R`) provides dynamic slider controls a
 
 ## 2. R Markdown Simulation Notebooks (`r_markdowns/`)
 
+### `3_ols_unbiasedness_simulation.Rmd` *(Sampling Distribution & Unbiasedness Proof)*
+* **Focus Topic:** Gauss-Markov Unbiasedness ($E[\hat{\beta}] = \beta$) across 1,000 Monte Carlo samples
+* Simulates an underlying $N=1,000$ population with $Y = 1.0 + 2.0X + \text{rnorm}(1000, 0, 1)$ across $X \in [0, 10]$.
+* Uses `purrr::map_dfr()` across 1,000 loops to sample $n=30$ observations without replacement and fit `lm(y ~ x)`.
+* Generates side-by-side `ggplot2` histograms proving that sample intercept and slope means converge precisely to $\beta_0=1.0$ and $\beta_1=2.0$.
+
 ### `1_cooks_distance_leverage.Rmd`
 * Simulates small sample data ($n=14$) and appends an extreme horizontal leverage point at $X=12, Y=-3$.
 * Computes and visualizes **Cook's Distance ($D_i$)** bar charts against the critical $4/n$ threshold.
@@ -54,7 +60,7 @@ The multi-tab interactive Shiny app (`app.R`) provides dynamic slider controls a
 From your R console (in RStudio or Posit):
 ```r
 # Install required packages if missing:
-install.packages(c("shiny", "ggplot2", "dplyr", "broom", "bslib", "MASS", "sandwich", "lmtest"))
+install.packages(c("shiny", "ggplot2", "dplyr", "broom", "bslib", "MASS", "purrr", "sandwich", "lmtest"))
 
 # Launch the app:
 library(shiny)
@@ -65,9 +71,9 @@ runApp("examples_and_simulations/shiny_apps/ols_assumptions_explorer")
 To render any `.Rmd` notebook to HTML:
 ```r
 library(rmarkdown)
-render("examples_and_simulations/r_markdowns/2_ols_assumptions_simulations.Rmd")
+render("examples_and_simulations/r_markdowns/3_ols_unbiasedness_simulation.Rmd")
 ```
 Or via terminal:
 ```bash
-Rscript -e "rmarkdown::render('examples_and_simulations/r_markdowns/2_ols_assumptions_simulations.Rmd')"
+Rscript -e "rmarkdown::render('examples_and_simulations/r_markdowns/3_ols_unbiasedness_simulation.Rmd')"
 ```

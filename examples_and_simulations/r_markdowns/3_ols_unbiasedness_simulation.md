@@ -1,0 +1,165 @@
+---
+title: "R Notebook 3: OLS Unbiasedness & Sampling Distribution ($E[\\hat{\\beta}] = \\beta$)"
+author: "Nick Lim"
+date: "2026-07-16"
+output:
+  html_document:
+    theme: readable
+    highlight: tango
+    toc: true
+    toc_float: true
+---
+
+# Introduction: What is Unbiasedness?
+
+Under the Gauss-Markov assumptions, Ordinary Least Squares (OLS) estimators are **unbiased**, meaning their expected value across all possible random samples equals the true underlying population parameter:
+$$E[\hat{\beta}_0] = \beta_0, \quad E[\hat{\beta}_1] = \beta_1$$
+
+In this simulation notebook, we demonstrate what this theoretical expectation means practically:
+1. We generate a true **Population of 1,000 points** from the linear process $Y = 1.0 + 2.0X + \mathcal{N}(0, 1)$ where $X \sim \text{Uniform}(0, 10)$.
+2. We run **1,000 Monte Carlo loops**: in each loop, we draw a random subsample of $n = 30$ observations without replacement from the population, fit `lm(y ~ x)`, and record the estimated intercept ($\hat{\beta}_0$) and slope ($\hat{\beta}_1$).
+3. We plot histograms of the 1,000 estimated coefficients to show that their average centers exactly on $\beta_0 = 1.0$ and $\beta_1 = 2.0$.
+
+---
+
+# 1. Generating the True Population ($N = 1,000$)
+
+Let's simulate the underlying 1,000 population data points.
+
+``` r
+N_pop <- 1000
+pop_df <- tibble(
+  id = 1:N_pop,
+  x = runif(N_pop, min = 0, max = 10),
+  y = 1.0 + 2.0 * x + rnorm(N_pop, mean = 0, sd = 1.0)
+)
+
+ggplot(pop_df, aes(x = x, y = y)) +
+  geom_point(color = "#3b82f6", alpha = 0.5, size = 2) +
+  geom_abline(intercept = 1.0, slope = 2.0, color = "#1e293b", linewidth = 1.5) +
+  labs(
+    title = "True Population Relationship (N = 1,000)",
+    subtitle = "Solid black line indicates true population process: Y = 1 + 2X",
+    x = "Predictor (X)",
+    y = "Outcome (Y)"
+  )
+```
+
+![plot of chunk pop-data](figure/pop-data-1.png)
+
+---
+
+# 2. Monte Carlo Simulation: 1,000 Samples of $n = 30$
+
+We now perform the sampling experiment using `purrr::map_dfr()` to collect intercept and slope estimates across 1,000 independent samples of size 30.
+
+``` r
+n_sims <- 1000
+sample_size <- 30
+
+sim_results <- map_dfr(1:n_sims, function(i) {
+  sample_df <- pop_df %>% slice_sample(n = sample_size)
+  mod <- lm(y ~ x, data = sample_df)
+  tidy(mod) %>%
+    select(term, estimate) %>%
+    tidyr::pivot_wider(names_from = term, values_from = estimate) %>%
+    rename(beta_0 = `(Intercept)`, beta_1 = x)
+})
+
+cat("=== Sampling Distribution Summary Table ===\n")
+```
+
+```
+## === Sampling Distribution Summary Table ===
+```
+
+``` r
+cat("True Intercept (beta_0)             : 1.0000\n")
+```
+
+```
+## True Intercept (beta_0)             : 1.0000
+```
+
+``` r
+cat("Mean Sample Intercept (mean(hat_b0)): ", round(mean(sim_results$beta_0), 4), "\n")
+```
+
+```
+## Mean Sample Intercept (mean(hat_b0)):  1.0031
+```
+
+``` r
+cat("-> Intercept Bias                   : ", round(mean(sim_results$beta_0) - 1.0, 4), "\n\n")
+```
+
+```
+## -> Intercept Bias                   :  0.0031
+```
+
+``` r
+cat("True Slope (beta_1)                 : 2.0000\n")
+```
+
+```
+## True Slope (beta_1)                 : 2.0000
+```
+
+``` r
+cat("Mean Sample Slope (mean(hat_b1))    : ", round(mean(sim_results$beta_1), 4), "\n")
+```
+
+```
+## Mean Sample Slope (mean(hat_b1))    :  1.9995
+```
+
+``` r
+cat("-> Slope Bias                       : ", round(mean(sim_results$beta_1) - 2.0, 4), "\n")
+```
+
+```
+## -> Slope Bias                       :  -0.0005
+```
+
+---
+
+# 3. Visualizing the Sampling Distributions
+
+Let's plot side-by-side histograms of the 1,000 sample intercepts and slopes. We draw:
+- **Dashed Black Line:** True population value ($\beta_0 = 1.0, \beta_1 = 2.0$)
+- **Solid Red Line:** Average of our 1,000 estimated coefficients across all samples
+
+``` r
+p1 <- ggplot(sim_results, aes(x = beta_0)) +
+  geom_histogram(fill = "#f59e0b", color = "white", bins = 35, alpha = 0.75) +
+  geom_vline(xintercept = 1.0, color = "#1e293b", linetype = "dashed", linewidth = 1.4) +
+  geom_vline(xintercept = mean(sim_results$beta_0), color = "#dc2626", linewidth = 1.2) +
+  labs(
+    title = "Sampling Distribution of Intercept",
+    subtitle = paste0("Mean estimate = ", round(mean(sim_results$beta_0), 3)),
+    x = expression(Estimated ~ Intercept ~ (hat(beta)[0])),
+    y = "Frequency"
+  )
+
+p2 <- ggplot(sim_results, aes(x = beta_1)) +
+  geom_histogram(fill = "#16a34a", color = "white", bins = 35, alpha = 0.75) +
+  geom_vline(xintercept = 2.0, color = "#1e293b", linetype = "dashed", linewidth = 1.4) +
+  geom_vline(xintercept = mean(sim_results$beta_1), color = "#dc2626", linewidth = 1.2) +
+  labs(
+    title = "Sampling Distribution of Slope",
+    subtitle = paste0("Mean estimate = ", round(mean(sim_results$beta_1), 3)),
+    x = expression(Estimated ~ Slope ~ (hat(beta)[1])),
+    y = "Frequency"
+  )
+
+p1 + p2
+```
+
+![plot of chunk plot-histograms](figure/plot-histograms-1.png)
+
+---
+
+# Key Takeaways
+
+1. **Unbiasedness is an Aggregate Guarantee:** While any individual sample of $n=30$ might produce a slope like `1.82` or `2.18`, the average across all possible samples converges exactly to `2.0`.
+2. **Gauss-Markov Efficiency:** Under constant error variance and zero conditional mean, OLS not only yields unbiased parameter estimates but also achieves the minimum variance among all linear unbiased estimators (**BLUE** property).

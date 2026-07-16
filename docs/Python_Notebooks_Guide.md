@@ -14,7 +14,15 @@ This guide details the Python 3 Jupyter Notebooks available in our open-source p
 
 ## Available Notebooks
 
-### 1. `1_simulating_heteroscedasticity.ipynb`
+### 1. `4_ols_unbiasedness_sampling_distribution.ipynb` *(Sampling Distribution & Unbiasedness Proof)*
+* **Focus Topic:** Gauss-Markov Unbiasedness ($E[\hat{\beta}] = \beta$) & Sampling Distributions
+* **Core Simulations & Workflows:**
+  * Generates a true underlying **Population of 1,000 observations** where $Y_i = 1.0 + 2.0X_i + \mathcal{N}(0, 1)$ across $X \in [0, 10]$.
+  * Runs a **1,000-loop Monte Carlo sampling experiment**: in each loop, draws a random subsample of $n = 30$ observations without replacement, fits an Ordinary Least Squares (`sm.OLS`) model, and records the estimated intercept ($\hat{\beta}_0$) and slope ($\hat{\beta}_1$).
+  * Generates side-by-side **KDE & Histogram plots** of the 1,000 sample estimates.
+  * Proves empirically that while individual samples fluctuate (`1.85`, `2.15`), the mean of the sampling distribution aligns directly on $\beta_0 = 1.0$ and $\beta_1 = 2.0$.
+
+### 2. `1_simulating_heteroscedasticity.ipynb`
 * **Focus Assumption:** Assumption 4 (Homoscedasticity vs. Heteroscedasticity)
 * **Core Simulations & Workflows:**
   * Simulates both homoscedastic data ($\epsilon_i \sim \mathcal{N}(0, 1.5^2)$) and expanding "megaphone" heteroscedastic data ($\epsilon_i \sim \mathcal{N}(0, (0.4X_i)^2)$).
@@ -22,7 +30,7 @@ This guide details the Python 3 Jupyter Notebooks available in our open-source p
   * Runs a 1,000-loop **Monte Carlo simulation** proving that while Ordinary Least Squares (OLS) coefficient estimates $\hat{\beta}$ remain **unbiased** under heteroscedasticity, standard errors become unreliable.
   * Implements and demonstrates White's **`HC3` Heteroscedasticity-Consistent Robust Standard Errors** (`mod.get_robustcov_results(cov_type="HC3")`).
 
-### 2. `2_collinearity_crash.ipynb`
+### 3. `2_collinearity_crash.ipynb`
 * **Focus Assumption:** Assumption 6 (No Perfect Multicollinearity)
 * **Core Simulations & Workflows:**
   * Constructs a design matrix $X$ where $X_2 = 1.5X_1$ exactly to test the linear algebra requirement $(X'X)^{-1}$.
@@ -30,7 +38,7 @@ This guide details the Python 3 Jupyter Notebooks available in our open-source p
   * Simulates near-collinearity ($r = 0.999$) by injecting tiny noise ($X_2 = 1.5X_1 + \mathcal{N}(0, 0.05)$).
   * Computes **Variance Inflation Factors (`VIF`)** across all predictors ($VIF > 10$) and runs 100 simulations showing extreme **see-saw volatility** between $\hat{\beta}_1$ and $\hat{\beta}_2$.
 
-### 3. `3_ols_assumptions_all_simulations.ipynb` *(Master Practice Suite)*
+### 4. `3_ols_assumptions_all_simulations.ipynb` *(Master Practice Suite)*
 * **Focus Assumption:** Comprehensive Master Notebook covering Assumptions 1 through 6
 * **Core Simulations & Workflows:**
   * **Linearity in Parameters:** Simulates cubic data ($Y = -5 + X^3 + \epsilon$), demonstrates linear underfitting, and applies $X^3$ polynomial transformation.
