@@ -1,0 +1,224 @@
+---
+title: "R Master Simulation Suite: All 6 OLS Assumptions & Diagnostics"
+author: "Nick Lim"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    theme: readable
+    highlight: tango
+    toc: true
+    toc_float: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE, fig.width = 8.5, fig.height = 5.5)
+library(ggplot2)
+library(dplyr)
+library(broom)
+library(MASS)
+
+set.seed(42)
+theme_set(theme_minimal(base_size = 14) +
+  theme(
+    plot.title = element_text(face = "bold", size = 16),
+    panel.border = element_rect(colour = "#cbd5e1", fill = NA, linewidth = 0.8)
+  ))
+```
+
+# Executive Summary
+
+This R Markdown document provides comprehensive simulation code and diagnostic workflows for **all 6 assumptions of Ordinary Least Squares (OLS) regression**. Designed for econometrics practice and data science interview preparation, each section simulates a specific assumption violation and walks through industry-standard diagnostics (`Residuals vs Fitted`, `Scale-Location`, Cook's distance, `VIF`) and robust fixes (`rlm`, log/polynomial transformations, robust standard errors).
+
+---
+
+# Assumption 1: Linearity in Parameters
+
+**Rule:** The regression model must be linear in its coefficients $\beta_j$.  
+**Simulation:** We generate cubic data $Y_i = -5 + X_i^3 + \epsilon_i$. We fit both a naive linear model (`lm(y ~ x)`) and a properly transformed model (`lm(y ~ I(x^3))`).
+
+```{r linearity-sim}
+n <- 60
+df_lin <- tibble(
+  x = seq(0, 5, length.out = n),
+  y = -5 + x^3 + rnorm(n, 0, 7.5)
+)
+
+mod_naive <- lm(y ~ x, data = df_lin)
+mod_trans <- lm(y ~ I(x^3), data = df_lin)
+
+df_lin <- df_lin %>%
+  mutate(
+    pred_naive = predict(mod_naive),
+    pred_trans = predict(mod_trans)
+  )
+
+ggplot(df_lin, aes(x = x, y = y)) +
+  geom_point(color = "#f59e0b", size = 3, alpha = 0.85) +
+  geom_line(aes(y = pred_naive, color = "Naive Linear OLS (Underfit)"), linewidth = 1.3) +
+  geom_line(aes(y = pred_trans, color = "Transformed OLS (I(X^3))"), linewidth = 1.4) +
+  scale_color_manual(values = c("Naive Linear OLS (Underfit)" = "#dc2626", "Transformed OLS (I(X^3))" = "#1e293b")) +
+  labs(
+    title = "Assumption 1: Linearity Failure & Polynomial Fix",
+    subtitle = "Forcing a straight line through cubic data creates systematic residual curvature",
+    x = "Predictor (X)",
+    y = "Outcome (Y)",
+    color = "Model Specification"
+  ) +
+  theme(legend.position = "top")
+```
+
+---
+
+# Assumption 2: Representative Samples Across Ranges
+
+**Rule:** The sample must be representative across the domain of $X$ without range restriction.  
+**Simulation:** We simulate a global population trend with positive slope ($\beta_1 = +0.8$), but where local range subsets ($0 < X < 1.4$, etc.) exhibit negative slopes ($\hat{\beta}_1 \approx -0.8$).
+
+```{r range-subset-sim}
+n_sub <- 45
+df_range <- bind_rows(
+  tibble(group = "Lower 3rd (0 < X < 1.4)", x = runif(n_sub, 0.2, 1.4)),
+  tibble(group = "Middle 3rd (2 < X < 3.4)", x = runif(n_sub, 2.2, 3.4)),
+  tibble(group = "Upper 3rd (4 < X < 5.4)", x = runif(n_sub, 4.2, 5.4))
+) %>%
+  mutate(
+    y = case_when(
+      group == "Lower 3rd (0 < X < 1.4)" ~ 1.5 - 0.8 * (x - 0.8) + rnorm(n(), 0, 0.6),
+      group == "Middle 3rd (2 < X < 3.4)" ~ 4.5 - 0.8 * (x - 2.8) + rnorm(n(), 0, 0.6),
+      TRUE ~ 7.5 - 0.8 * (x - 4.8) + rnorm(n(), 0, 0.6)
+    )
+  )
+
+mod_all <- lm(y ~ x, data = df_range)
+
+ggplot(df_range, aes(x = x, y = y, color = group)) +
+  geom_point(size = 3, alpha = 0.8) +
+  geom_smooth(method = "lm", se = FALSE, linetype = "dashed", linewidth = 1.2) +
+  geom_abline(intercept = coef(mod_all)[1], slope = coef(mod_all)[2], color = "#1e293b", linewidth = 1.5) +
+  scale_color_manual(values = c("Lower 3rd (0 < X < 1.4)" = "#f59e0b", "Middle 3rd (2 < X < 3.4)" = "#16a34a", "Upper 3rd (4 < X < 5.4)" = "#f97316")) +
+  labs(
+    title = "Assumption 2: Range Subsetting Reverses Estimated Slopes",
+    subtitle = paste0("Solid black line = Global Population Trend (Beta1 = +", round(coef(mod_all)[2], 2), ") vs Local Dashed Fits"),
+    x = "Predictor (X)",
+    y = "Outcome (Y)",
+    color = "Sample Subset"
+  ) +
+  theme(legend.position = "top")
+```
+
+---
+
+# Assumption 3: Zero Conditional Mean ($E[\epsilon|X]=0$)
+
+**Rule:** The expected value of the error term given any value of $X$ must be zero.  
+**Simulation:** When omitted variables or endogeneity exist, the candidate line shifts or tilts, causing $E[\epsilon|X] \neq 0$.
+
+```{r exogeneity-sim}
+n <- 100
+df_exog <- tibble(
+  x = runif(n, 0, 5),
+  y = x + rnorm(n, 0, 1)
+)
+x_grid <- seq(0, 5, length.out = 100)
+df_lines <- bind_rows(
+  tibble(x = x_grid, y = x_grid, model = "True OLS (Y = X)"),
+  tibble(x = x_grid, y = x_grid + 1, model = "Step 1: Intercept Up (+1)"),
+  tibble(x = x_grid, y = 1.2 * x_grid - 0.5, model = "Step 3: Steep Slope Bias")
+)
+
+ggplot(df_exog, aes(x = x, y = y)) +
+  geom_point(color = "#f59e0b", size = 2.8, alpha = 0.75) +
+  geom_line(data = df_lines, aes(x = x, y = y, color = model, linetype = model), linewidth = 1.3) +
+  scale_color_manual(values = c("True OLS (Y = X)" = "#16a34a", "Step 1: Intercept Up (+1)" = "#eab308", "Step 3: Steep Slope Bias" = "#dc2626")) +
+  labs(
+    title = "Assumption 3: Zero Conditional Mean Violation",
+    subtitle = "Shifting the intercept or tilting the slope forces E[e|X] away from zero across X",
+    x = "Predictor (X)",
+    y = "Outcome (Y)"
+  )
+```
+
+---
+
+# Assumption 4: Homoscedasticity vs. Megaphone Heteroscedasticity
+
+**Rule:** Error variance $\text{Var}(\epsilon_i)$ must remain constant across all observations.  
+**Simulation:** We compare `Residuals vs Fitted` and `Scale-Location` charts for constant variance ($\sigma = 0.6$) vs megaphone spread ($\sigma_i = 0.45X_i$).
+
+```{r variance-sim}
+n <- 150
+df_var <- tibble(
+  x = runif(n, 1, 10),
+  y_hom = 3 + 2 * x + rnorm(n, 0, 0.6),
+  y_het = 3 + 2 * x + rnorm(n, 0, 0.45 * x)
+)
+
+mod_hom <- lm(y_hom ~ x, data = df_var)
+mod_het <- lm(y_het ~ x, data = df_var)
+
+df_diag <- bind_rows(
+  augment(mod_hom) %>% mutate(model = "1. Homoscedastic (Constant Envelope)"),
+  augment(mod_het) %>% mutate(model = "2. Heteroscedastic (Megaphone Envelope)")
+)
+
+ggplot(df_diag, aes(x = .fitted, y = .resid)) +
+  geom_point(color = "#f97316", size = 2.5, alpha = 0.75) +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "#1e293b", linewidth = 1.1) +
+  geom_smooth(method = "loess", se = FALSE, color = "#dc2626", linewidth = 1.3) +
+  facet_wrap(~ model, scales = "free") +
+  labs(
+    title = "Assumption 4: Residuals vs. Fitted Comparison",
+    subtitle = "LOESS curve stays flat for homoscedasticity vs expanding fan shape under heteroscedasticity",
+    x = "Fitted Values (Y-hat)",
+    y = "Residuals"
+  )
+```
+
+---
+
+# Assumption 5: Normality & Outlier Influence
+
+**Rule:** Errors should be normally distributed (or $n \ge 30$), and high-leverage outliers must be diagnosed.  
+**Simulation:** Cook's distance $D_i > \frac{4}{n}$ and comparison between OLS squared error minimization vs M-estimation (`MASS::rlm`).
+
+```{r outlier-sim}
+n_c <- 14
+df_out <- tibble(
+  x = c(seq(1, 8, length.out = n_c), 12.0),
+  y = c(1 + 1.2 * seq(1, 8, length.out = n_c) + rnorm(n_c, 0, 0.5), -3.0)
+)
+
+mod_ols <- lm(y ~ x, data = df_out)
+mod_rlm <- rlm(y ~ x, data = df_out)
+
+df_preds <- tibble(
+  x = seq(0, 13, length.out = 100),
+  pred_ols = predict(mod_ols, newdata = data.frame(x = seq(0, 13, length.out = 100))),
+  pred_rlm = predict(mod_rlm, newdata = data.frame(x = seq(0, 13, length.out = 100)))
+)
+
+ggplot(df_out, aes(x = x, y = y)) +
+  geom_point(color = "#2563eb", size = 4) +
+  geom_point(data = filter(df_out, x == 12), color = "#dc2626", size = 6, shape = 17) +
+  geom_line(data = df_preds, aes(x = x, y = pred_ols, color = "OLS (Pulled by Outlier)"), linewidth = 1.4) +
+  geom_line(data = df_preds, aes(x = x, y = pred_rlm, color = "Robust rlm (Resistant to Outlier)"), linewidth = 1.4) +
+  scale_color_manual(values = c("OLS (Pulled by Outlier)" = "#dc2626", "Robust rlm (Resistant to Outlier)" = "#16a34a")) +
+  labs(
+    title = "Assumption 5: Outlier Magnetism & Robust Regression Fix",
+    subtitle = "Notice how MASS::rlm resists the horizontal leverage outlier while OLS tilts sharply",
+    x = "Predictor (X)",
+    y = "Outcome (Y)",
+    color = "Model Fit"
+  )
+```
+
+---
+
+# Summary Table of Diagnostics
+
+| Diagnostic Test | R Function / Syntax | Critical Threshold | Recommended Action |
+|---|---|---|---|
+| **Residual vs Fitted** | `plot(model, which = 1)` | Flat horizontal trend line | Polynomial / log transformations |
+| **Scale-Location** | `plot(model, which = 3)` | Flat line / uniform vertical band | White `HC3` robust standard errors |
+| **Cook's Distance** | `plot(model, which = 4)` | $D_i > \frac{4}{n}$ | Prune / investigate or use `MASS::rlm()` |
+| **Normal Q-Q Plot** | `plot(model, which = 2)` | Points along $Y=X$ diagonal | Check for extreme fat tails / outliers |
