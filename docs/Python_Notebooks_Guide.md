@@ -8,44 +8,42 @@
 
 ## Overview
 
-This guide details the Python 3 Jupyter Notebooks available in our open-source practice repository. Each notebook provides fully reproducible, step-by-step Monte Carlo simulations and diagnostic plotting workflows using `numpy`, `pandas`, `matplotlib`, `seaborn`, and `statsmodels`.
+This guide details the Python 3 Jupyter Notebooks available in our open-source practice repository. Each Gauss-Markov assumption has its own standalone, individually numbered simulation notebook alongside a comprehensive master practice suite.
 
 ---
 
-## Available Notebooks
+## Available Standalone Notebooks
 
-### 1. `4_ols_unbiasedness_sampling_distribution.ipynb` *(Sampling Distribution & Unbiasedness Proof)*
+### 1. `assumption_0_unbiasedness_sampling_distribution.ipynb`
 * **Focus Topic:** Gauss-Markov Unbiasedness ($E[\hat{\beta}] = \beta$) & Sampling Distributions
-* **Core Simulations & Workflows:**
-  * Generates a true underlying **Population of 1,000 observations** where $Y_i = 1.0 + 2.0X_i + \mathcal{N}(0, 1)$ across $X \in [0, 10]$.
-  * Runs a **1,000-loop Monte Carlo sampling experiment**: in each loop, draws a random subsample of $n = 30$ observations without replacement, fits an Ordinary Least Squares (`sm.OLS`) model, and records the estimated intercept ($\hat{\beta}_0$) and slope ($\hat{\beta}_1$).
-  * Generates side-by-side **KDE & Histogram plots** of the 1,000 sample estimates.
-  * Proves empirically that while individual samples fluctuate (`1.85`, `2.15`), the mean of the sampling distribution aligns directly on $\beta_0 = 1.0$ and $\beta_1 = 2.0$.
+* **Simulations:** Simulates $N=1,000$ population ($Y = 1 + 2X + \epsilon$). Runs a 1,000-loop Monte Carlo sampling experiment drawing $n=30$ points without replacement and plots side-by-side histograms proving sample means converge to exact true parameters ($\beta_0=1, \beta_1=2$).
 
-### 2. `1_simulating_heteroscedasticity.ipynb`
-* **Focus Assumption:** Assumption 4 (Homoscedasticity vs. Heteroscedasticity)
-* **Core Simulations & Workflows:**
-  * Simulates both homoscedastic data ($\epsilon_i \sim \mathcal{N}(0, 1.5^2)$) and expanding "megaphone" heteroscedastic data ($\epsilon_i \sim \mathcal{N}(0, (0.4X_i)^2)$).
-  * Generates `Residuals vs Fitted` diagnostic scatter plots to reveal the expanding envelope.
-  * Runs a 1,000-loop **Monte Carlo simulation** proving that while Ordinary Least Squares (OLS) coefficient estimates $\hat{\beta}$ remain **unbiased** under heteroscedasticity, standard errors become unreliable.
-  * Implements and demonstrates White's **`HC3` Heteroscedasticity-Consistent Robust Standard Errors** (`mod.get_robustcov_results(cov_type="HC3")`).
+### 2. `assumption_1_linearity_in_parameters.ipynb`
+* **Focus Topic:** Linearity in Parameters ($Y = X\beta + \epsilon$) & Polynomial Transformations
+* **Simulations:** Simulates cubic curvature ($Y = -5 + 0.8X^3 + \epsilon$). Demonstrates naive linear underfitting, reveals S-shaped LOESS systematic curves in `Residuals vs Fitted` plots, and applies $X^3$ transformations to restore exact linearity in parameters.
 
-### 3. `2_collinearity_crash.ipynb`
-* **Focus Assumption:** Assumption 6 (No Perfect Multicollinearity)
-* **Core Simulations & Workflows:**
-  * Constructs a design matrix $X$ where $X_2 = 1.5X_1$ exactly to test the linear algebra requirement $(X'X)^{-1}$.
-  * Demonstrates how the determinant $|X'X| = 0$ triggers Python's `LinAlgError: Singular matrix` exception when attempting `np.linalg.inv(XtX)`.
-  * Simulates near-collinearity ($r = 0.999$) by injecting tiny noise ($X_2 = 1.5X_1 + \mathcal{N}(0, 0.05)$).
-  * Computes **Variance Inflation Factors (`VIF`)** across all predictors ($VIF > 10$) and runs 100 simulations showing extreme **see-saw volatility** between $\hat{\beta}_1$ and $\hat{\beta}_2$.
+### 3. `assumption_2_representative_sampling.ipynb`
+* **Focus Topic:** Representative & Random Sampling from Population vs Selection Bias
+* **Simulations:** Constructs a global population ($N=2,000$, true slope $+1.50$) with localized sub-group dynamics. Compares a **True Random Representative Sample ($n=30$)** against an **Unrepresentative Range-Truncated Sample ($n=30$)** to show how selection bias reverses slopes (-0.85 slope via Simpson's Paradox) and inflates standard errors over 5x.
 
-### 4. `3_ols_assumptions_all_simulations.ipynb` *(Master Practice Suite)*
-* **Focus Assumption:** Comprehensive Master Notebook covering Assumptions 1 through 6
-* **Core Simulations & Workflows:**
-  * **Linearity in Parameters:** Simulates cubic data ($Y = -5 + X^3 + \epsilon$), demonstrates linear underfitting, and applies $X^3$ polynomial transformation.
-  * **Representative Samples:** Simulates range subsetting ($0<X<1.4$, etc.) producing negative slopes against a positive global population trend.
-  * **Exogeneity & Zero Conditional Mean:** Injects intercept shifts ($\pm 1$) and slope tilts to show how omitted variables cause $E[\epsilon|X] \neq 0$.
-  * **Error Variance & Autocorrelation:** Compares homoscedastic, megaphone heteroscedastic, and temporal autocorrelation drift ($e_t = \mathcal{N}(0,1) + t/10$).
-  * **Normality Q-Q & Outlier Influence:** Generates Normal Q-Q plots ($n \le 30$) and measures Cook's Distance ($D_i$) for extreme horizontal leverage points.
+### 4. `assumption_3_exogeneity_zero_conditional_mean.ipynb`
+* **Focus Topic:** Exogeneity & Zero Conditional Mean of Errors ($E[\epsilon|X] = 0$)
+* **Simulations:** Injects unobserved confounders ($Z = 0.8X + v$) to show how omitted variables force $E[\epsilon|X] \neq 0$, causing $+1.20$ upward slope bias. Runs Monte Carlo proofs showing asymptotic inconsistency persists even as sample size $N \to \infty$.
+
+### 5. `assumption_4_homoscedasticity_vs_heteroscedasticity.ipynb`
+* **Focus Topic:** Homoscedasticity ($\text{Var}(\epsilon_i) = \sigma^2$) vs Megaphone Heteroscedasticity
+* **Simulations:** Simulates expanding "megaphone" error spread ($\sigma_i = 0.4X_i$). Proves $\hat{\beta}$ remains unbiased across 1,000 loops while standard errors shrink artificially. Implements White's `HC3` robust covariance matrix (`mod.get_robustcov_results(cov_type="HC3")`).
+
+### 6. `assumption_5_outliers_leverage_cooks_distance.ipynb`
+* **Focus Topic:** Error Normality & Small Sample Outlier Sensitivity ($n \le 30$)
+* **Simulations:** Simulates $n=14$ clean points and appends a 15th extreme horizontal leverage point at $X=12, Y=-3$. Computes Cook's Distance ($D_i > 4/n$) bar charts and demonstrates how Robust M-Estimation (`sm.RLM` with Huber loss) resists outlier distortion.
+
+### 7. `assumption_6_no_perfect_multicollinearity.ipynb`
+* **Focus Topic:** No Perfect Multicollinearity & Singular Matrix Crash
+* **Simulations:** Constructs exact linear duplicates ($X_2 = 1.5X_1$) triggering Python's `LinAlgError: Singular matrix` exception. Injects near-collinear noise ($r=0.999$) to compute Variance Inflation Factors (`VIF > 10`) and plot see-saw slope volatility across 100 simulations.
+
+### 8. `master_all_assumptions_suite.ipynb` *(Master Practice Suite)*
+* **Focus Topic:** Complete All-in-One Simulation Suite covering all 6 assumptions sequentially.
 
 ---
 
@@ -64,4 +62,3 @@ This guide details the Python 3 Jupyter Notebooks available in our open-source p
    ```bash
    jupyter lab
    ```
-   Navigate to `examples_and_simulations/jupyter_notebooks/` and open any `.ipynb` notebook.

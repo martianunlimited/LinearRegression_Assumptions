@@ -1,0 +1,124 @@
+---
+title: "R Notebook: Assumption 3 - Exogeneity & Zero Conditional Mean"
+author: "Nick Lim"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    theme: readable
+    highlight: tango
+    toc: true
+    toc_float: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE, fig.width = 9.5, fig.height = 5.5)
+library(ggplot2)
+library(dplyr)
+library(broom)
+
+set.seed(42)
+theme_set(theme_minimal(base_size = 14) +
+  theme(
+    plot.title = element_text(face = "bold", size = 15),
+    panel.border = element_rect(colour = "#cbd5e1", fill = NA, linewidth = 0.8)
+  ))
+```
+
+# Overview: What is Exogeneity?
+
+Under the Gauss-Markov framework, **Assumption 3** requires that the error term $\epsilon$ has an expected value of exactly zero given any value of the predictor variables ($X$):
+$$E[\epsilon_i | X_i] = 0$$
+
+### What causes violations of $E[\epsilon | X] = 0$?
+1. **Omitted Variable Bias (OVB):** Leaving out a confounding variable $Z$ that is correlated with both the outcome $Y$ and the predictor $X$.
+2. **Simultaneity / Endogeneity:** When $Y$ also causes $X$ in a feedback loop.
+3. **Measurement Error in Predictors:** Attenuation bias caused by noisy measurement of $X$.
+
+### What is the consequence?
+When $E[\epsilon | X] \neq 0$, Ordinary Least Squares estimates ($\hat{\beta}_0, \hat{\beta}_1$) become **systematically biased and inconsistent**. Even if your sample size approaches infinity ($N \to \infty$), your OLS slope will **never converge to the true parameter**!
+
+---
+
+# 1. Simulating Omitted Variable Bias ($N = 1,000$)
+
+Suppose our true structural data-generating process depends on both $X$ and an unobserved confounder $Z$:
+$$Y = 5.0 + 2.0 X + 1.5 Z + u, \quad u \sim \mathcal{N}(0, 1)$$
+
+Suppose $X$ and $Z$ are positively correlated ($Z = 0.8 X + v$). If a researcher only observes $X$ and fits the naive regression `y ~ x`, the unobserved $1.5 Z$ gets forced into the error term:
+$$\epsilon = 1.5 Z + u = 1.5 (0.8 X + v) + u = 1.2 X + \text{noise}$$
+
+Because the error term $\epsilon$ now depends directly on $+1.2 X$, **$E[\epsilon | X] \neq 0$**! The OLS slope will be biased upward by exactly $+\beta_Z \times \frac{\text{Cov}(X, Z)}{\text{Var}(X)} = +1.5 \times 0.8 = +1.20$ (yielding $\hat{\beta}_1 \approx 3.20$ instead of $2.00$).
+
+```{r sim-ovb}
+N <- 1000
+df <- tibble(
+  id = 1:N,
+  x = runif(N, 0, 10),
+  z = 0.8 * x + rnorm(N, 0, 1.0),
+  y = 5.0 + 2.0 * x + 1.5 * z + rnorm(N, 0, 1.0)
+)
+
+mod_omitted <- lm(y ~ x, data = df)
+mod_full <- lm(y ~ x + z, data = df)
+
+cat("=== Model Comparison: Omitted Confounder vs. Full Exogenous Specification ===\n")
+cat("True Structural Slope for X : +2.000\n")
+cat("-> Naive Omitted Fit (y ~ x): +", round(coef(mod_omitted)["x"], 3), " (Biased upward by +1.20 due to E[epsilon|X] != 0)\n")
+cat("-> Full Exogenous Fit       : +", round(coef(mod_full)["x"], 3), " (Unbiased structural parameter recovery!)\n")
+```
+
+---
+
+# 2. Visual Diagnostic: Error Expectations vs Predictor ($X$)
+
+Let's visualize how violating $E[\epsilon | X] = 0$ distorts the regression slope and creates a sloping relationship between the composite error and $X$.
+
+```{r plot-exogeneity, fig.width=10, fig.height=5.2}
+df <- df %>% mutate(composite_error = 1.5 * z + rnorm(N, 0, 1.0))
+
+p1 <- ggplot(df, aes(x = x, y = y)) +
+  geom_point(color = "#cbd5e1", alpha = 0.5, size = 1.8) +
+  geom_line(aes(y = fitted(mod_omitted)), color = "#dc2626", linewidth = 1.6, linetype = "dashed") +
+  geom_abline(intercept = 5.0 + 1.5 * mean(df$z), slope = 2.0, color = "#1e293b", linewidth = 1.6) +
+  labs(title = "Omitted Variable Bias: Slope Distortion", subtitle = "Dashed red line = Naive OLS slope (+3.20); Solid black = True partial effect (+2.00)", x = "Predictor (X)", y = "Outcome (Y)")
+
+p2 <- ggplot(df, aes(x = x, y = composite_error)) +
+  geom_point(color = "#f59e0b", alpha = 0.5, size = 1.8) +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "#1e293b", linewidth = 1.2) +
+  geom_smooth(method = "lm", se = FALSE, color = "#dc2626", linewidth = 1.6) +
+  labs(title = "Violation of Assumption 3", subtitle = expression(E[epsilon ~ "|" ~ X] == 1.2 * X != 0), x = "Predictor (X)", y = "True Composite Error")
+
+library(patchwork)
+if (requireNamespace("patchwork", quietly = TRUE)) {
+  p1 + p2
+} else {
+  print(p1); print(p2)
+}
+```
+
+---
+
+# 3. Monte Carlo Proof of Inconsistency ($N \to \infty$ Does Not Help)
+
+Unlike sample noise (which shrinks to zero as $n \to \infty$), violating Assumption 3 introduces **asymptotic bias (inconsistency)**. Even if we increase our sample size to $N = 5,000$ across 500 simulations, the average estimated slope remains locked at `3.20` instead of `2.00`.
+
+```{r mc-inconsistency}
+sim_slopes <- purrr::map_dbl(1:500, function(i) {
+  xs <- runif(5000, 0, 10)
+  zs <- 0.8 * xs + rnorm(5000, 0, 1.0)
+  ys <- 5.0 + 2.0 * xs + 1.5 * zs + rnorm(5000, 0, 1.0)
+  coef(lm(ys ~ xs))[2]
+})
+
+cat("=== Monte Carlo Proof of Inconsistency across 500 Loops (N = 5,000 each) ===\n")
+cat("True Structural Slope          : 2.0000\n")
+cat("Mean Estimated Slope (mean(b1)): ", round(mean(sim_slopes), 4), "\n")
+cat("-> Permanent Asymptotic Bias   : +", round(mean(sim_slopes) - 2.0, 4), " (Will never vanish regardless of sample size!)\n")
+```
+
+---
+
+# Key Takeaways
+
+- **Exogeneity ($E[\epsilon|X]=0$) is the most critical Gauss-Markov assumption** for causal and structural interpretation.
+- **Fixes:** If omitted confounders cannot be observed directly, econometricians use **Instrumental Variables (`IV / 2SLS`)**, **Fixed Effects panel models**, or **Randomized Controlled Trials (`RCTs`)** to break the correlation between $X$ and $\epsilon$.
